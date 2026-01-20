@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "calesons",
+    "slug": "calesons",
+    "version": "1.0.0",
+    "scheme": "sporty",
+    "orientation": "portrait",
+    "icon": "#",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "#",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gaelpilet.sporty"
+    },
+    "android": {
+      "package": "com.gaelpilet.sporty",
+      "adaptiveIcon": {
+        "foregroundImage": "#",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "#"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
