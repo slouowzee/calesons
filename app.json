@@ -5,22 +5,19 @@
     "version": "1.0.0",
     "scheme": "sporty",
     "orientation": "portrait",
-    "icon": "#",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "#",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.gaelpilet.sporty"
+      "bundleIdentifier": "com.slouowze.calesons"
     },
     "android": {
-      "package": "com.gaelpilet.sporty",
+      "package": "com.slouowze.calesons",
       "adaptiveIcon": {
-        "foregroundImage": "#",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -28,8 +25,7 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
-      "favicon": "#"
+      "output": "static"
     },
     "plugins": [
       "expo-router"
