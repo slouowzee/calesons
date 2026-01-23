@@ -5,6 +5,7 @@
  * Also includes a hook for retrieving theme colors.
  */
 import { Text as DefaultText, View as DefaultView } from 'react-native';
+import appColors from '../lib/theme';
 
 type ThemeProps = {
   lightColor?: string;
@@ -19,10 +20,12 @@ export type ViewProps = ThemeProps & DefaultView['props'];
  * Always uses the light theme colors (black text, white background) unless overridden via props.
  */
 export function useThemeColor(props: { light?: string; dark?: string }, _colorName?: string) {
-  // Force 'light' theme
+  // Force 'light' theme for now, but use centralized app colors
   const colorFromProps = props.light;
   if (colorFromProps) return colorFromProps;
-  return _colorName === 'background' ? '#ffffff' : '#000000';
+  if (_colorName === 'background') return appColors.background;
+  if (_colorName === 'text') return appColors.text;
+  return appColors.text;
 }
 
 /**
@@ -37,7 +40,7 @@ export function Text(props: TextProps) {
   const { style, lightColor, darkColor, ...otherProps } = props;
   const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
 
-  return <DefaultText style={[{ color }, style]} {...otherProps} />;
+  return <DefaultText style={[{ color, fontFamily: 'Montserrat' }, style]} {...otherProps} />;
 }
 
 /**

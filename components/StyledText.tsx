@@ -14,5 +14,5 @@ import { Text, TextProps } from './Themed';
  * @returns {JSX.Element} The rendered text component.
  */
 export function MonoText(props: TextProps) {
-  return <Text {...props} style={[props.style, { fontFamily: 'SpaceMono' }]} />;
+  return <Text {...props} style={[props.style, { fontFamily: 'Montserrat' }]} />;
 }

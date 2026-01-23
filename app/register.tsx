@@ -3,6 +3,7 @@ import { View, Text, Button, Input } from 'tamagui';
 import useAuthFormStore from '../lib/authFormStore';
 import authApi from '../lib/authApi';
 import useAuthStore from '../lib/authStore';
+import appColors from '../lib/theme';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -20,7 +21,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <View flex={1} backgroundColor="white" justifyContent="center" alignItems="center" padding={16}>
+    <View flex={1} backgroundColor={appColors.background} justifyContent="center" alignItems="center" padding={16}>
       <View width="100%" maxWidth={420} paddingHorizontal="$4">
         <Text fontSize={24} fontWeight="700" textAlign="center">Inscription</Text>
 

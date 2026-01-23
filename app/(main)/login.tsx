@@ -1,9 +1,12 @@
 import { useRouter } from 'expo-router';
-import { View, Text, Button, Input } from 'tamagui';
+import { View, Text, Button, Input, XStack } from 'tamagui';
 import { useCallback } from 'react';
 import useAuthFormStore from '../../lib/authFormStore';
 import useAuthStore from '../../lib/authStore';
 import authApi from '../../lib/authApi';
+import appColors from '../../lib/theme';
+import { TouchableOpacity } from 'react-native';
+import { FontAwesome } from '@expo/vector-icons';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -23,7 +26,7 @@ export default function LoginScreen() {
   }, [email, password]);
 
   return (
-    <View flex={1} backgroundColor="white" justifyContent="center" alignItems="center" padding={16}>
+    <View flex={1} backgroundColor={appColors.background} justifyContent="center" alignItems="center" padding={16}>
       <View width="100%" maxWidth={420} paddingHorizontal="$4">
         <Text fontSize={24} fontWeight="700" textAlign="center">Connexion</Text>
 
@@ -32,9 +35,23 @@ export default function LoginScreen() {
         </View>
 
         <View marginTop="$3">
-          <Input width="100%" placeholder="Mot de passe" secureTextEntry={!showPassword} value={password} onChangeText={(t) => setField('password', t)} />
-          <View marginTop="$2">
-            <Button width="100%" onPress={() => toggleShowPassword()}>{showPassword ? 'Cacher' : 'Afficher'}</Button>
+          <View width="100%" position="relative">
+            <Input
+              width="100%"
+              placeholder="Mot de passe"
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={(t) => setField('password', t)}
+              paddingRight={44}
+            />
+
+            <TouchableOpacity
+              onPress={() => toggleShowPassword()}
+              accessibilityLabel={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+              style={{ position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center' }}
+            >
+              <FontAwesome name={showPassword ? 'eye' : 'eye-slash'} size={20} color={showPassword ? appColors.primary : appColors.text} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -42,8 +59,13 @@ export default function LoginScreen() {
           <Button width="100%" onPress={onSubmit}>Se connecter</Button>
         </View>
 
-        <View marginTop="$3">
-          <Button width="100%" onPress={() => { setMode('register'); router.push('/register'); }}>Pas de compte ? Inscris-toi</Button>
+        <View marginTop="$3" alignItems="center">
+          <Text fontSize={14} color={appColors.text}>
+            Pas de compte ?{' '}
+            <Text onPress={() => { setMode('register'); router.push('/register'); }} color={appColors.primary} fontWeight="700" accessibilityRole="button">
+              Inscris-toi
+            </Text>
+          </Text>
         </View>
       </View>
     </View>

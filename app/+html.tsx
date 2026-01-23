@@ -5,6 +5,7 @@
  * Sets universal styles and responsive background colors.
  */
 import { ScrollViewStyleReset } from 'expo-router/html';
+import appColors from '../lib/theme';
 
 /**
  * Root Component
@@ -34,10 +35,10 @@ export default function Root({ children }: { children: React.ReactNode }) {
 
 const responsiveBackground = `
 body {
-  background-color: #fff;
+  background-color: ${appColors.background};
 }
 @media (prefers-color-scheme: dark) {
   body {
-    background-color: #000;
+    background-color: ${appColors.backgroundDark};
   }
 }`;

@@ -1,5 +1,6 @@
 import { config as defaultConfig } from '@tamagui/config/v3'
 import { createFont, createTamagui } from 'tamagui'
+import appColors from './lib/theme' // central theme colors
 
 const montserratFont = createFont({
   family: 'Montserrat',
@@ -59,6 +60,19 @@ const montserratFont = createFont({
 
 const tamaguiConfig = createTamagui({
   ...defaultConfig,
+  // extend default tokens so we don't lose required token groups (size, radius, etc.)
+  tokens: {
+    ...defaultConfig.tokens,
+    color: {
+      ...(defaultConfig.tokens?.color ?? {}),
+      background: appColors.background,
+      backgroundDark: appColors.backgroundDark,
+      text: appColors.text,
+      primary: appColors.primary,
+      primaryDark: appColors.primaryDark,
+      onPrimary: appColors.onPrimary,
+    },
+  },
   fonts: {
     ...defaultConfig.fonts,
     heading: montserratFont,
