@@ -3,7 +3,7 @@
     "name": "calesons",
     "slug": "calesons",
     "version": "1.0.0",
-    "scheme": "sporty",
+    "scheme": "calesons",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "splash": {
@@ -12,7 +12,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.slouowze.calesons"
+      "bundleIdentifier": "com.slouowze.calesons",
+      "infoPlist": {
+        "NSCameraUsageDescription": "L'application a besoin d'accéder à la caméra pour scanner des codes QR."
+      }
     },
     "android": {
       "package": "com.slouowze.calesons",
@@ -20,14 +23,31 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "bundler": "metro",
       "output": "static"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "react-native-vision-camera",
+        {
+          "enableCodeScanner": true
+        }
+      ],
+      [
+        "react-native-permissions",
+        {
+          "iosPermissions": [
+            "Camera"
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

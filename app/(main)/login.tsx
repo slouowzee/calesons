@@ -10,27 +10,39 @@ import { FontAwesome } from '@expo/vector-icons';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { email, password, showPassword, setField, toggleShowPassword, setMode } = useAuthFormStore();
+  const { mode, name, email, password, showPassword, setField, toggleShowPassword, setMode } = useAuthFormStore();
   const { login } = useAuthStore();
+  const isRegister = mode === 'register';
 
   const onSubmit = useCallback(async () => {
-    // call API
     try {
-      const res = await authApi.login({ email, password });
-      // assume res contains user
-      login(res.user);
+      if (isRegister) {
+        const res = await authApi.register({ name: name || '', email, password });
+        login(res.user);
+      } else {
+        const res = await authApi.login({ email, password });
+        login(res.user);
+      }
       router.replace('/');
     } catch (e) {
-      console.warn('login failed', e);
+      console.warn(isRegister ? 'register failed' : 'login failed', e);
     }
-  }, [email, password]);
+  }, [mode, name, email, password]);
 
   return (
     <View flex={1} backgroundColor={appColors.background} justifyContent="center" alignItems="center" padding={16}>
       <View width="100%" maxWidth={420} paddingHorizontal="$4">
-        <Text fontSize={24} fontWeight="700" textAlign="center">Connexion</Text>
+        <Text fontSize={24} fontWeight="700" textAlign="center">
+          {isRegister ? 'Inscription' : 'Connexion'}
+        </Text>
 
-        <View marginTop="$4">
+        {isRegister && (
+          <View marginTop="$4">
+            <Input width="100%" placeholder="Nom" value={name} onChangeText={(t) => setField('name', t)} />
+          </View>
+        )}
+
+        <View marginTop={isRegister ? "$3" : "$4"}>
           <Input width="100%" placeholder="Email" value={email} onChangeText={(t) => setField('email', t)} />
         </View>
 
@@ -56,14 +68,21 @@ export default function LoginScreen() {
         </View>
 
         <View marginTop="$4">
-          <Button width="100%" onPress={onSubmit}>Se connecter</Button>
+          <Button width="100%" onPress={onSubmit}>
+            {isRegister ? 'Créer mon compte' : 'Se connecter'}
+          </Button>
         </View>
 
         <View marginTop="$3" alignItems="center">
           <Text fontSize={14} color={appColors.text}>
-            Pas de compte ?{' '}
-            <Text onPress={() => { setMode('register'); router.push('/register'); }} color={appColors.primary} fontWeight="700" accessibilityRole="button">
-              Inscris-toi
+            {isRegister ? 'Déjà un compte ? ' : 'Pas de compte ? '}
+            <Text
+              onPress={() => setMode(isRegister ? 'login' : 'register')}
+              color={appColors.primary}
+              fontWeight="700"
+              accessibilityRole="button"
+            >
+              {isRegister ? 'Connecte-toi' : 'Inscris-toi'}
             </Text>
           </Text>
         </View>
