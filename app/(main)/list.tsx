@@ -263,9 +263,11 @@ export default function EventsScreen() {
 
                       {item.NBMAXPARTICIPANTMANIF && (
                         <XStack alignItems="center" gap="$2">
-                          <FontAwesome name="users" size={14} color={appColors.primary} />
-                          <Text fontSize={12} color="$gray10">
-                            Reste {item.NBPLACESRESTANTES || (item.NBMAXPARTICIPANTMANIF - (item.reservations_count || 0))} p.
+                          <FontAwesome name="users" size={14} color={item.available_places !== undefined && item.available_places <= 0 ? '#dc2626' : appColors.primary} />
+                          <Text fontSize={12} color={item.available_places !== undefined && item.available_places <= 0 ? '#dc2626' : '$gray10'} fontWeight="600">
+                            {item.available_places !== undefined 
+                              ? (item.available_places <= 0 ? 'Complet' : `${item.available_places} p.`)
+                              : `${item.NBMAXPARTICIPANTMANIF} p.`}
                           </Text>
                         </XStack>
                       )}

@@ -7,6 +7,7 @@ import { useState } from 'react';
 import useCartStore from '../../lib/cartStore';
 import useAuthStore from '../../lib/authStore';
 import { Alert, TouchableOpacity } from 'react-native';
+import ticketApi from '../../lib/ticketApi';
 
 export default function CheckoutScreen() {
   const router = useRouter();
@@ -16,46 +17,67 @@ export default function CheckoutScreen() {
   const total = getTotal();
   const [loading, setLoading] = useState<string | null>(null);
 
-  const handlePayment = (method: 'paypal' | 'card') => {
+  const handlePayment = async (method: 'paypal' | 'card') => {
     setLoading(method);
     
-    // Simulation du délai de traitement bancaire
-    setTimeout(() => {
-      setLoading(null);
-      
-      // Simulation locale de création de billets pour "Mon Espace"
-      if (user) {
-        const newBillets = [...(user.billets || [])];
-        items.forEach(item => {
-          for (let i = 0; i < item.quantity; i++) {
-            newBillets.push({
-              ID_BILLET: Math.floor(Math.random() * 1000000),
-              IDMANIF: item.id,
-              NOMFESTIVAL: item.name,
-              NOMTYPEBILLET: item.type,
-              DATESESSION: item.sessionDate,
-              HEUREDEBSESSION: item.sessionTime,
-              QRCODE: `TICKET-${item.id}-${Math.floor(Math.random() * 10000)}`
-            });
-          }
-        });
-        setAuth({ ...user, billets: newBillets }, token || '');
+    try {
+      if (!user) throw new Error("Utilisateur non connecté");
+      const userId = (user as any).IDPERS || user.id;
+
+      // 1. Pour chaque article du panier, créer une réservation
+      for (const item of items) {
+        const manifId = Number(item.id);
+        const quantity = Number(item.quantity);
+
+        console.log(`Création réservation pour manif #${manifId}, client #${userId}, quantité: ${quantity}`);
+        
+        // CB = 1, PayPal = 2 dans la table TYPEPAIEMENT
+        const paymentTypeId = method === 'card' ? 1 : 2;
+        const resResponse = await ticketApi.createReservation(manifId, quantity, userId, paymentTypeId);
+        
+        // Extraction de l'ID de réservation : le backend Laravel renvoie dans data.data ou data
+        const resData = resResponse.data || resResponse;
+        const reservationId = resData.IDRESERVATION || resData.id || (resResponse.data?.IDRESERVATION);
+
+        if (!reservationId) {
+          console.error("Réponse API réservation incomplète:", resResponse);
+          throw new Error("Impossible de récupérer l'ID de la réservation.");
+        }
+
+        console.log(`Réservation #${reservationId} créée avec succès.`);
       }
 
+      setLoading(null);
+      
       Alert.alert(
         "Paiement Réussi",
-        `Merci ! Votre paiement par ${method === 'paypal' ? 'PayPal' : 'Carte Bancaire'} a été validé.`,
+        `Merci ! Votre paiement par ${method === 'paypal' ? 'PayPal' : 'Carte Bancaire'} a été validé.\nVos billets sont prêts dans votre espace.`,
         [
           { 
             text: "Voir mes billets", 
             onPress: () => {
               clearCart();
+              // On redirige vers Mon Espace (login) qui va refresh les billets depuis l'API
               router.push('/login');
             } 
           }
         ]
       );
-    }, 2500);
+    } catch (error: any) {
+      setLoading(null);
+      console.error("Erreur paiement:", error);
+      
+      // Extraction du message d'erreur de l'API (souvent dans error.response.data.message ou errors)
+      const apiMessage = error.response?.data?.message || error.message;
+      const apiErrors = error.response?.data?.errors;
+      let detailedMsg = apiMessage;
+      
+      if (apiErrors) {
+        detailedMsg += "\n" + Object.values(apiErrors).flat().join("\n");
+      }
+
+      Alert.alert("Erreur de paiement", `Une erreur est survenue : \n${detailedMsg}`);
+    }
   };
 
   return (

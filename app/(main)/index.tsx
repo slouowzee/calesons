@@ -1,17 +1,19 @@
 import { View, Text, YStack, Card, H3, Paragraph, Spinner, XStack, ScrollView, Image, Button } from 'tamagui';
 import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
+import ticketApi from '../../lib/ticketApi';
 import appColors from '../../lib/theme';
 import { TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import useAuthStore from '../../lib/authStore';
 import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
 
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, isLoggedIn } = useAuthStore();
+  const { user, isLoggedIn, setAuth, token } = useAuthStore();
 
   const { data: events, isLoading } = useQuery({
     queryKey: ['next-events'],
@@ -28,6 +30,17 @@ export default function Dashboard() {
         .slice(0, 3);
     },
   });
+
+  // Rafraîchir les billets au montage
+  useEffect(() => {
+    const clientId = (user as any)?.IDPERS || user?.id;
+    if (isLoggedIn && clientId) {
+      ticketApi.getTicketsByClient(clientId).then(res => {
+        const billets = Array.isArray(res) ? res : (res.data || []);
+        setAuth({ ...user, billets }, token || '');
+      }).catch(err => console.error("Index tickets refresh error:", err));
+    }
+  }, [isLoggedIn, (user as any)?.IDPERS, user?.id]);
 
   const tickets = user?.billets || [];
 
@@ -83,6 +96,14 @@ export default function Dashboard() {
                       </XStack>
                       <Text fontWeight="700" color={appColors.secondary}>{item.PRIXMANIF || item.prix || 0}€</Text>
                     </XStack>
+                    {item.available_places !== undefined && (
+                      <XStack alignItems="center" gap="$1">
+                        <FontAwesome name="users" size={10} color={item.available_places <= 0 ? '#dc2626' : '$gray10'} />
+                        <Text fontSize={11} color={item.available_places <= 0 ? '#dc2626' : '$gray10'} fontWeight="600">
+                          {item.available_places <= 0 ? 'Complet' : `${item.available_places} place${item.available_places > 1 ? 's' : ''}`}
+                        </Text>
+                      </XStack>
+                    )}
                   </YStack>
                 </Card>
               </TouchableOpacity>
@@ -122,11 +143,15 @@ export default function Dashboard() {
                       </View>
                       <FontAwesome name="qrcode" size={16} color={appColors.primary} />
                     </XStack>
-                    <Text fontWeight="800" fontSize={16} numberOfLines={1}>{ticket.NOMFESTIVAL || 'Événement'}</Text>
+                    <Text fontWeight="800" fontSize={16} numberOfLines={1}>{ticket.manifestation?.NOMMANIF || ticket.NOMFESTIVAL || 'Événement'}</Text>
                     <XStack alignItems="center" gap="$2">
                       <FontAwesome name="calendar" size={12} color="$gray10" />
                       <Text fontSize={12} color="$gray10">
-                        {ticket.DATESESSION ? new Date(ticket.DATESESSION).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : 'À venir'}
+                        {ticket.reservation?.DATEHEURERESERVATION 
+                          ? new Date(ticket.reservation.DATEHEURERESERVATION).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) 
+                          : ticket.DATESESSION 
+                            ? new Date(ticket.DATESESSION).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+                            : 'À venir'}
                       </Text>
                     </XStack>
                   </YStack>

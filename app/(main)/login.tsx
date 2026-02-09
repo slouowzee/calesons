@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
-import { View, Text, Button, Input, XStack, YStack, H4, Card, Paragraph } from 'tamagui';
-import { useCallback, useState } from 'react';
+import { View, Text, Button, Input, XStack, YStack, H4, Card, Paragraph, Spinner } from 'tamagui';
+import { useCallback, useState, useEffect } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import useAuthFormStore from '../../lib/authFormStore';
 import useAuthStore from '../../lib/authStore';
 import authApi from '../../lib/authApi';
+import ticketApi from '../../lib/ticketApi';
 import appColors from '../../lib/theme';
 import { TouchableOpacity, Alert, ScrollView, Modal } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
@@ -16,7 +17,8 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { items } = useCartStore();
   const cartCount = items.reduce((acc, item) => acc + item.quantity, 0);
-  const [selectedQR, setSelectedQR] = useState<{ value: string, title: string } | null>(null);
+  const [selectedQR, setSelectedQR] = useState<{ qrcodes: string[], title: string, count: number } | null>(null);
+  const [currentQRIndex, setCurrentQRIndex] = useState(0);
 
   const { 
     mode, 
@@ -32,9 +34,38 @@ export default function LoginScreen() {
     setMode 
   } = useAuthFormStore();
   
-  const { setAuth, isLoggedIn, user } = useAuthStore();
+  const { setAuth, isLoggedIn, user, token } = useAuthStore();
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const isRegister = mode === 'register';
+
+  // Charger les billets au montage si connecté
+  useEffect(() => {
+    if (isLoggedIn && (user?.id || (user as any)?.IDPERS)) {
+      refreshTickets();
+    }
+  }, [isLoggedIn, user?.id, (user as any)?.IDPERS]);
+
+  const refreshTickets = async () => {
+    const clientId = (user as any)?.IDPERS || user?.id;
+    if (!clientId) return;
+    setRefreshing(true);
+    try {
+      // Récupérer les billets du client
+      const ticketRes = await ticketApi.getTicketsByClient(clientId);
+      const billets = Array.isArray(ticketRes) ? ticketRes : (ticketRes.data || []);
+      
+      // Récupérer aussi les réservations pour avoir les infos complètes
+      const resaRes = await ticketApi.getReservationsByClient(clientId);
+      const reservations = Array.isArray(resaRes) ? resaRes : (resaRes.data || []);
+      
+      setAuth({ ...user, billets, reservations }, token || '');
+    } catch (e) {
+      console.error("Erreur lors de la récupération des billets:", e);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const formatPhone = (val: any) => {
     if (!val) return '';
@@ -124,23 +155,34 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <Text fontSize={16} fontWeight="700" marginTop="$2">Mes Billets</Text>
-          {user.billets && user.billets.length > 0 ? (
+          {refreshing ? (
+            <YStack alignItems="center" py="$4">
+              <Spinner color={appColors.primary} />
+            </YStack>
+          ) : user.billets && user.billets.length > 0 ? (
             <YStack gap="$3">
-              {/* Groupement des billets par événement/manifestation */}
+              {/* Groupement des billets par manifestation */}
               {Object.values(user.billets.reduce((acc: any, billet: any) => {
-                const key = `${billet.IDMANIF}-${billet.DATESESSION}`;
+                const key = `${billet.IDMANIF}`;
                 if (!acc[key]) {
                   acc[key] = { 
-                    name: billet.NOMFESTIVAL || 'Événement', 
-                    type: billet.NOMTYPEBILLET,
-                    date: billet.DATESESSION,
-                    time: billet.HEUREDEBSESSION,
+                    name: billet.manifestation?.NOMMANIF || billet.NOMFESTIVAL || 'Événement', 
+                    type: billet.manifestation?.concert ? 'Concert' : billet.manifestation?.conference ? 'Conférence' : 'Événement',
+                    date: billet.reservation?.DATEHEURERESERVATION || billet.manifestation?.sessions?.[0]?.DATESESSION,
                     count: 0,
-                    ids: []
+                    ids: [],
+                    qrcodes: [],
+                    usedCount: 0
                   };
                 }
                 acc[key].count += 1;
-                acc[key].ids.push(billet.ID_BILLET);
+                acc[key].ids.push(billet.IDBILLET || billet.ID_BILLET);
+                if (billet.QRCODEBILLET || billet.QRCODE) {
+                  acc[key].qrcodes.push(billet.QRCODEBILLET || billet.QRCODE);
+                }
+                if (billet.INVITEBILLET) {
+                  acc[key].usedCount += 1;
+                }
                 return acc;
               }, {})).map((group: any, idx: number) => (
                 <Card key={idx} elevate p="$4" backgroundColor="white" borderRadius="$4" borderWidth={1} borderColor="$gray3">
@@ -150,8 +192,10 @@ export default function LoginScreen() {
                         <Text fontWeight="800" fontSize={16}>{group.name}</Text>
                         <Text fontSize={12} color="$gray10">{group.type} • {group.count} place(s)</Text>
                       </YStack>
-                      <View backgroundColor="$blue1" px="$2" py="$1" borderRadius="$2">
-                        <Text fontSize={11} fontWeight="700" color={appColors.primary}>VALIDE</Text>
+                      <View backgroundColor={group.usedCount === group.count ? "$green2" : "$blue1"} px="$2" py="$1" borderRadius="$2">
+                        <Text fontSize={11} fontWeight="700" color={group.usedCount === group.count ? "$green10" : appColors.primary}>
+                          {group.usedCount === group.count ? 'UTILISÉ' : 'VALIDE'}
+                        </Text>
                       </View>
                     </XStack>
                     
@@ -159,23 +203,28 @@ export default function LoginScreen() {
                       <FontAwesome name="calendar" size={12} color="$gray10" />
                       <Text fontSize={12} color="$gray10">
                         {group.date ? new Date(group.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : 'Date à venir'}
-                        {group.time ? ` à ${group.time.substring(0, 5)}` : ''}
                       </Text>
                     </XStack>
 
-                    <Button 
-                      marginTop="$2"
-                      backgroundColor={appColors.primary} 
-                      color="white" 
-                      size="$3"
-                      icon={<FontAwesome name="qrcode" color="white" />}
-                      onPress={() => setSelectedQR({
-                        value: JSON.stringify({ manifestation_id: group.ids[0].toString().split('-')[0], ticket_ids: group.ids }),
-                        title: group.name
-                      })}
-                    >
-                      Voir le QR Code
-                    </Button>
+                    {group.qrcodes.length > 0 && (
+                      <Button 
+                        marginTop="$2"
+                        backgroundColor={appColors.primary} 
+                        color="white" 
+                        size="$3"
+                        icon={<FontAwesome name="qrcode" color="white" />}
+                        onPress={() => {
+                          setCurrentQRIndex(0);
+                          setSelectedQR({
+                            qrcodes: group.qrcodes,
+                            title: group.name,
+                            count: group.count
+                          });
+                        }}
+                      >
+                        Voir {group.count > 1 ? `les ${group.count} QR Codes` : 'le QR Code'}
+                      </Button>
+                    )}
                   </YStack>
                 </Card>
               ))}
@@ -229,13 +278,17 @@ export default function LoginScreen() {
           <Card elevate p="$6" backgroundColor="white" borderRadius="$6" alignItems="center" gap="$5" width="85%">
             <YStack alignItems="center" gap="$2">
               <H4 textAlign="center" fontWeight="800">{selectedQR?.title}</H4>
-              <Text color="$gray10" fontSize={14}>Présentez ce code à l'entrée</Text>
+              <Text color="$gray10" fontSize={14}>
+                {selectedQR && selectedQR.count > 1
+                  ? `Billet ${currentQRIndex + 1} sur ${selectedQR.count}`
+                  : 'Présentez ce code à l\'entrée'}
+              </Text>
             </YStack>
 
             <View p="$4" backgroundColor="white" borderRadius="$4" borderWidth={1} borderColor="$gray3">
-              {selectedQR && (
+              {selectedQR && selectedQR.qrcodes[currentQRIndex] && (
                 <QRCode
-                  value={selectedQR.value}
+                  value={selectedQR.qrcodes[currentQRIndex]}
                   size={220}
                   color="black"
                   backgroundColor="white"
@@ -243,10 +296,38 @@ export default function LoginScreen() {
               )}
             </View>
 
+            {selectedQR && selectedQR.count > 1 && (
+              <XStack gap="$3" alignItems="center">
+                <Button
+                  size="$3"
+                  circular
+                  disabled={currentQRIndex === 0}
+                  opacity={currentQRIndex === 0 ? 0.3 : 1}
+                  backgroundColor={appColors.primary}
+                  onPress={() => setCurrentQRIndex(i => i - 1)}
+                >
+                  <FontAwesome name="chevron-left" size={14} color="white" />
+                </Button>
+                <Text fontWeight="700" fontSize={16} color={appColors.primary}>
+                  {currentQRIndex + 1} / {selectedQR.count}
+                </Text>
+                <Button
+                  size="$3"
+                  circular
+                  disabled={currentQRIndex === selectedQR.qrcodes.length - 1}
+                  opacity={currentQRIndex === selectedQR.qrcodes.length - 1 ? 0.3 : 1}
+                  backgroundColor={appColors.primary}
+                  onPress={() => setCurrentQRIndex(i => i + 1)}
+                >
+                  <FontAwesome name="chevron-right" size={14} color="white" />
+                </Button>
+              </XStack>
+            )}
+
             <YStack alignItems="center" gap="$1">
-              <Text fontWeight="700" color={appColors.primary}>CODE UNIQUE DE GROUPE</Text>
+              <Text fontWeight="700" color={appColors.primary}>BILLET INDIVIDUEL</Text>
               <Text fontSize={11} color="$gray9" textAlign="center">
-                Ce code est valable pour toutes vos places sur cet événement uniquement.
+                Chaque billet possède un QR code unique à présenter à l'entrée.
               </Text>
             </YStack>
 

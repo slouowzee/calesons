@@ -34,7 +34,26 @@ export default function EventDetailScreen() {
     },
   });
 
+  // Récupérer les places disponibles
+  const { data: placesData } = useQuery({
+    queryKey: ['places', id],
+    queryFn: async () => {
+      const response = await api.get(`/v1/manifestations/${id}/available-places`);
+      return response.data.data;
+    },
+    enabled: !!id,
+  });
+
+  const availablePlaces = placesData?.available_places ?? event?.available_places ?? null;
+  const totalPlaces = placesData?.total_places ?? event?.NBMAXPARTICIPANTMANIF ?? null;
+  const isSoldOut = availablePlaces !== null && availablePlaces <= 0;
+
   const addToCart = (goToCart = false) => {
+    if (isSoldOut) {
+      Alert.alert("Complet", "Cet événement est complet, il n'y a plus de places disponibles.");
+      return;
+    }
+
     if (!isLoggedIn) {
       Alert.alert(
         "Connexion requise",
@@ -112,31 +131,29 @@ export default function EventDetailScreen() {
         </View>
       )}
 
-      {/* Floating Back Button - As requested: bottom left above navbar */}
+      {/* Floating Back Button - top left */}
       <TouchableOpacity 
         onPress={() => router.back()}
         activeOpacity={0.8}
         style={{ 
           position: 'absolute', 
-          bottom: insets.bottom + 85, 
+          top: insets.top + 10, 
           left: 15, 
-          backgroundColor: appColors.primary, 
-          width: 50,
-          height: 50,
-          borderRadius: 25,
+          backgroundColor: 'rgba(0,0,0,0.45)', 
+          width: 40,
+          height: 40,
+          borderRadius: 20,
           justifyContent: 'center',
           alignItems: 'center',
           elevation: 8,
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 4.65,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.25,
+          shadowRadius: 3.84,
           zIndex: 1000,
-          borderWidth: 2,
-          borderColor: 'white'
         }}
       >
-        <FontAwesome name="chevron-left" size={20} color="white" />
+        <FontAwesome name="chevron-left" size={16} color="white" />
       </TouchableOpacity>
 
       <ScrollView bounces={false}>
@@ -231,15 +248,23 @@ export default function EventDetailScreen() {
             )}
           </YStack>
 
-          {event.NBMAXPARTICIPANTMANIF && (
-            <XStack backgroundColor="$blue1" p="$4" borderRadius="$4" alignItems="center" gap="$4" borderWidth={1} borderColor="$blue3">
-              <FontAwesome name="info-circle" size={20} color="$blue10" />
+          {totalPlaces && (
+            <XStack 
+              backgroundColor={isSoldOut ? "$red2" : "$blue1"} 
+              p="$4" 
+              borderRadius="$4" 
+              alignItems="center" 
+              gap="$4" 
+              borderWidth={1} 
+              borderColor={isSoldOut ? "$red5" : "$blue3"}
+            >
+              <FontAwesome name={isSoldOut ? "times-circle" : "info-circle"} size={20} color={isSoldOut ? "#dc2626" : "$blue10"} />
               <YStack flex={1}>
-                <Paragraph fontSize={14} color="$blue10" fontWeight="600">
-                  {event.NBPLACESRESTANTES || (event.NBMAXPARTICIPANTMANIF - (event.reservations_count || 0))} places disponibles
+                <Paragraph fontSize={14} color={isSoldOut ? "$red10" : "$blue10"} fontWeight="600">
+                  {isSoldOut ? 'COMPLET' : `${availablePlaces} place${availablePlaces > 1 ? 's' : ''} disponible${availablePlaces > 1 ? 's' : ''}`}
                 </Paragraph>
-                <Paragraph fontSize={12} color="$blue9">
-                  Capacité totale : {event.NBMAXPARTICIPANTMANIF} participants
+                <Paragraph fontSize={12} color={isSoldOut ? "$red9" : "$blue9"}>
+                  Capacité totale : {totalPlaces} participants
                 </Paragraph>
               </YStack>
             </XStack>
@@ -248,26 +273,30 @@ export default function EventDetailScreen() {
           <XStack gap="$3" marginTop="$4">
             <Button 
               flex={1}
-              backgroundColor={added ? "$green8" : "$gray3"} 
+              backgroundColor={isSoldOut ? "$gray5" : added ? "$green8" : "$gray3"} 
               color={added ? "white" : appColors.text} 
               size="$5" 
               borderRadius="$4"
               fontWeight="700"
               onPress={() => addToCart(false)}
-              icon={<FontAwesome name={added ? "check" : "cart-plus"} size={18} color={added ? "white" : appColors.primary} />}
+              disabled={isSoldOut}
+              opacity={isSoldOut ? 0.5 : 1}
+              icon={<FontAwesome name={added ? "check" : "cart-plus"} size={18} color={added ? "white" : isSoldOut ? "$gray8" : appColors.primary} />}
             >
-              {added ? "Ajouté !" : "Panier"}
+              {isSoldOut ? "Complet" : added ? "Ajouté !" : "Panier"}
             </Button>
             <Button 
               flex={2}
-              backgroundColor={appColors.primary} 
+              backgroundColor={isSoldOut ? "$gray5" : appColors.primary} 
               color="white" 
               size="$5" 
               borderRadius="$4"
               fontWeight="700"
               onPress={() => addToCart(true)}
+              disabled={isSoldOut}
+              opacity={isSoldOut ? 0.5 : 1}
             >
-              Réserver
+              {isSoldOut ? "Plus de places" : "Réserver"}
             </Button>
           </XStack>
         </YStack>

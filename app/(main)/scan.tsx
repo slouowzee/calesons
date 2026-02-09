@@ -70,49 +70,67 @@ export default function ScanScreen() {
     }
   });
 
+  // Regex UUID v4 pour ne valider que les QR codes de notre système
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
   const handleValidation = async (codeValue: string) => {
     setIsValidating(true);
     try {
-      // Tente de parser le code comme du JSON (notre format de groupe)
-      const data = JSON.parse(codeValue);
-      if (data.ticket_ids && Array.isArray(data.ticket_ids)) {
-        // APPEL API POUR VALIDATION
-        try {
-          await ticketApi.validateTickets(data.ticket_ids);
-          
-          Alert.alert(
-            "Validation réussie", 
-            `${data.ticket_ids.length} billet(s) validé(s) en base de données.\n\nIDs: ${data.ticket_ids.join(', ')}`,
-            [
-              { 
-                text: "Continuer", 
-                onPress: () => {
-                  setIsScanning(true);
-                  isScanningRef.current = true;
-                } 
-              }
-            ]
-          );
-        } catch (apiErr: any) {
-          const detail = apiErr.response?.data?.message || apiErr.message || "Erreur serveur";
-          Alert.alert("Échec API", `Le serveur a refusé la validation: \n${detail}`, [
-            { text: "OK", onPress: () => { setIsScanning(true); isScanningRef.current = true; } }
-          ]);
-        }
-      } else {
-        throw new Error("Format QR code invalide");
+      const trimmed = codeValue.trim();
+
+      // Filtrer : on n'accepte que les UUID (format de nos QRCODEBILLET)
+      if (!UUID_REGEX.test(trimmed)) {
+        Alert.alert(
+          "QR Code non reconnu",
+          "Ce code ne provient pas de notre système de billetterie.",
+          [{ text: "Réessayer", onPress: () => { setIsScanning(true); isScanningRef.current = true; } }]
+        );
+        return;
       }
-    } catch (e) {
-      // Si ce n'est pas du JSON ou format invalide, on affiche l'erreur
-      Alert.alert("Code non reconnu", "Ce code n'est pas un billet valide ou le format est incorrect.", [
-        { 
-          text: "Réessayer", 
-          onPress: () => {
-            setIsScanning(true);
-            isScanningRef.current = true;
-          } 
-        }
-      ]);
+
+      // Appel API de validation
+      const result = await ticketApi.validateTicket(trimmed);
+      
+      const clientName = result.client 
+        ? `${result.client.PRENOMPERS || ''} ${result.client.NOMPERS || ''}`.trim()
+        : null;
+      const manifName = result.manifestation?.NOMMANIF || null;
+
+      const nbValides = result.billets_valides || result.data?.billets_valides || 1;
+
+      let message = `${nbValides} billet(s) validé(s) avec succès !`;
+      if (clientName) message += `\n\nClient : ${clientName}`;
+      if (manifName) message += `\nÉvénement : ${manifName}`;
+
+      Alert.alert(
+        "Validation réussie ✓",
+        message,
+        [{ text: "OK", onPress: () => { setIsScanning(true); isScanningRef.current = true; } }]
+      );
+    } catch (err: any) {
+      const status = err.response?.status;
+      const apiMessage = err.response?.data?.message || err.message;
+
+      if (status === 400) {
+        // Billet déjà utilisé (INVITEBILLET = 1)
+        Alert.alert(
+          "Billet déjà utilisé",
+          apiMessage || "Ce billet a déjà été scanné et n'est plus valide.",
+          [{ text: "OK", onPress: () => { setIsScanning(true); isScanningRef.current = true; } }]
+        );
+      } else if (status === 404) {
+        Alert.alert(
+          "Billet introuvable",
+          "Aucun billet ne correspond à ce QR code.",
+          [{ text: "Réessayer", onPress: () => { setIsScanning(true); isScanningRef.current = true; } }]
+        );
+      } else {
+        Alert.alert(
+          "Erreur de validation",
+          `Le serveur a refusé la validation :\n${apiMessage}`,
+          [{ text: "OK", onPress: () => { setIsScanning(true); isScanningRef.current = true; } }]
+        );
+      }
     } finally {
       setIsValidating(false);
     }
@@ -165,13 +183,6 @@ export default function ScanScreen() {
         )}
       </View>
 
-      {!isScanning && (
-        <YStack position="absolute" bottom={120} width="100%" alignItems="center">
-          <Button backgroundColor={appColors.primary} color="white" size="$5" borderRadius={999} onPress={() => setIsScanning(true)}>
-            Scanner à nouveau
-          </Button>
-        </YStack>
-      )}
     </View>
   );
 }
