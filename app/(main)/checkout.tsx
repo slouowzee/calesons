@@ -35,16 +35,14 @@ export default function CheckoutScreen() {
         const paymentTypeId = method === 'card' ? 1 : 2;
         const resResponse = await ticketApi.createReservation(manifId, quantity, userId, paymentTypeId);
         
-        // Extraction de l'ID de réservation : le backend Laravel renvoie dans data.data ou data
+        // Le backend renvoie { success, data: { reservation: {...}, billets: [...] } }
         const resData = resResponse.data || resResponse;
-        const reservationId = resData.IDRESERVATION || resData.id || (resResponse.data?.IDRESERVATION);
-
-        if (!reservationId) {
+        if (!resData?.reservation && !resData?.success) {
           console.error("Réponse API réservation incomplète:", resResponse);
-          throw new Error("Impossible de récupérer l'ID de la réservation.");
+          throw new Error("Impossible de créer la réservation.");
         }
 
-        console.log(`Réservation #${reservationId} créée avec succès.`);
+        console.log(`Réservation créée avec ${quantity} billet(s).`);
       }
 
       setLoading(null);
