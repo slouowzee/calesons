@@ -6,6 +6,7 @@ import useAuthFormStore from '../../lib/authFormStore';
 import useAuthStore from '../../lib/authStore';
 import authApi from '../../lib/authApi';
 import ticketApi from '../../lib/ticketApi';
+import avisApi from '../../lib/avisApi';
 import appColors from '../../lib/theme';
 import { TouchableOpacity, Alert, ScrollView, Modal } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
@@ -37,14 +38,17 @@ export default function LoginScreen() {
   const { setAuth, isLoggedIn, user, token } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [userAvis, setUserAvis] = useState<any[]>([]);
   const isRegister = mode === 'register';
+  const isAdmin = !!(user?.is_admin || (user as any)?.ROLEPERS === 'admin');
 
-  // Charger les billets au montage si connecté
+  // Charger les billets et avis au montage si connecté (client uniquement)
   useEffect(() => {
-    if (isLoggedIn && (user?.id || (user as any)?.IDPERS)) {
+    if (isLoggedIn && !isAdmin && (user?.id || (user as any)?.IDPERS)) {
       refreshTickets();
+      refreshAvis();
     }
-  }, [isLoggedIn, user?.id, (user as any)?.IDPERS]);
+  }, [isLoggedIn, isAdmin, user?.id, (user as any)?.IDPERS]);
 
   const refreshTickets = async () => {
     const clientId = (user as any)?.IDPERS || user?.id;
@@ -64,6 +68,18 @@ export default function LoginScreen() {
       console.error("Erreur lors de la récupération des billets:", e);
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const refreshAvis = async () => {
+    const clientId = (user as any)?.IDPERS || user?.id;
+    if (!clientId) return;
+    try {
+      const res = await avisApi.getByClient(clientId);
+      const avis = Array.isArray(res) ? res : (res.data || []);
+      setUserAvis(avis);
+    } catch (e) {
+      console.error("Erreur lors de la récupération des avis:", e);
     }
   };
 
@@ -135,6 +151,7 @@ export default function LoginScreen() {
             </XStack>
           </Card>
 
+          {!isAdmin && (
           <TouchableOpacity onPress={() => router.push('/cart')}>
             <Card elevate p="$4" backgroundColor="white" borderRadius="$4" borderWidth={1} borderColor={cartCount > 0 ? appColors.primary : "$gray3"}>
               <XStack justifyContent="space-between" alignItems="center">
@@ -153,7 +170,31 @@ export default function LoginScreen() {
               </XStack>
             </Card>
           </TouchableOpacity>
+          )}
 
+          {/* ─── ADMIN: Bouton modération ─────────────────────────── */}
+          {isAdmin && (
+            <TouchableOpacity onPress={() => router.push('/moderation')}>
+              <Card elevate p="$4" backgroundColor="white" borderRadius="$4" borderWidth={1} borderColor={appColors.primary}>
+                <XStack justifyContent="space-between" alignItems="center">
+                  <XStack alignItems="center" gap="$3">
+                    <View backgroundColor="$orange1" p="$2" borderRadius="$3">
+                      <FontAwesome name="star" size={20} color="#f59e0b" />
+                    </View>
+                    <YStack>
+                      <Text fontWeight="700" fontSize={16}>Modération des avis</Text>
+                      <Text fontSize={12} color="$gray10">Gérer les avis des utilisateurs</Text>
+                    </YStack>
+                  </XStack>
+                  <FontAwesome name="chevron-right" size={16} color="$gray8" />
+                </XStack>
+              </Card>
+            </TouchableOpacity>
+          )}
+
+          {/* ─── CLIENT: Mes Billets ────────────────────────────────── */}
+          {!isAdmin && (
+          <>
           <Text fontSize={16} fontWeight="700" marginTop="$2">Mes Billets</Text>
           {refreshing ? (
             <YStack alignItems="center" py="$4">
@@ -241,6 +282,59 @@ export default function LoginScreen() {
             </Card>
           )}
 
+          <Text fontSize={16} fontWeight="700" marginTop="$2">Mes Avis</Text>
+          {userAvis.length > 0 ? (
+            <YStack gap="$3">
+              {userAvis.map((avis: any) => {
+                const manifName = avis.manifestation?.NOMMANIF || 'Événement';
+                const isApproved = avis.APPROUVERAVIS;
+                return (
+                  <Card key={avis.IDAVIS} p="$3" backgroundColor="white" borderRadius="$3" borderWidth={1} borderColor={isApproved ? "$green4" : "$orange3"}>
+                    <YStack gap="$2">
+                      <XStack justifyContent="space-between" alignItems="center">
+                        <Text fontWeight="700" fontSize={14} flex={1} numberOfLines={1}>{manifName}</Text>
+                        <XStack gap="$2" alignItems="center">
+                          <XStack gap="$1">
+                            {[1, 2, 3, 4, 5].map(s => (
+                              <FontAwesome key={s} name={s <= avis.NOTEAVIS ? "star" : "star-o"} size={13} color="#f59e0b" />
+                            ))}
+                          </XStack>
+                          <TouchableOpacity onPress={() => {
+                            Alert.alert("Supprimer l'avis", "Voulez-vous vraiment supprimer cet avis ?", [
+                              { text: "Annuler", style: "cancel" },
+                              { text: "Supprimer", style: "destructive", onPress: async () => {
+                                try {
+                                  await avisApi.delete(avis.IDAVIS);
+                                  setUserAvis(prev => prev.filter(a => a.IDAVIS !== avis.IDAVIS));
+                                } catch (e: any) {
+                                  Alert.alert("Erreur", e.response?.data?.message || "Impossible de supprimer l'avis.");
+                                }
+                              }},
+                            ]);
+                          }}>
+                            <FontAwesome name="trash" size={14} color="#dc2626" />
+                          </TouchableOpacity>
+                        </XStack>
+                      </XStack>
+                      {avis.COMMENTAIREAVIS && (
+                        <Text fontSize={12} color="$gray11" numberOfLines={2}>"{avis.COMMENTAIREAVIS}"</Text>
+                      )}
+                      <View backgroundColor={isApproved ? "$green2" : "$orange2"} px="$2" py="$0.5" borderRadius="$2" alignSelf="flex-start">
+                        <Text fontSize={10} fontWeight="700" color={isApproved ? "$green10" : "$orange10"}>
+                          {isApproved ? 'Publié' : 'En attente de modération'}
+                        </Text>
+                      </View>
+                    </YStack>
+                  </Card>
+                );
+              })}
+            </YStack>
+          ) : (
+            <Text fontSize={13} color="$gray10">Vous n'avez pas encore donné d'avis.</Text>
+          )}
+          </>
+          )}
+
           <Text fontSize={16} fontWeight="700" marginTop="$2">Actions</Text>
           <YStack gap="$2">
             <Button 
@@ -251,6 +345,7 @@ export default function LoginScreen() {
             >
               Modifier mes infos
             </Button>
+            {!isAdmin && (
             <Button 
               themeInverse 
               icon={<FontAwesome name="history" />} 
@@ -259,6 +354,7 @@ export default function LoginScreen() {
             >
               Historique des achats
             </Button>
+            )}
           </YStack>
         </YStack>
       </ScrollView>

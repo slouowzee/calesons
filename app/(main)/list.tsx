@@ -16,8 +16,9 @@ export default function EventsScreen() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [addedMap, setAddedMap] = useState<{[key: string]: boolean}>({});
   const { items, addItem } = useCartStore();
-  const { isLoggedIn } = useAuthStore();
+  const { isLoggedIn, user } = useAuthStore();
   const cartCount = items.reduce((acc, item) => acc + item.quantity, 0);
+  const isAdmin = !!(user?.is_admin || (user as any)?.ROLEPERS === 'admin');
 
   const handleAddToCart = (item: any) => {
     if (!isLoggedIn) {
@@ -287,6 +288,7 @@ export default function EventsScreen() {
                       </YStack>
                     </XStack>
                     
+                    {!isAdmin && (
                     <Button 
                       size="$3" 
                       backgroundColor={addedMap[(item.IDMANIF || item.id).toString()] ? "$green8" : appColors.primary} 
@@ -300,6 +302,7 @@ export default function EventsScreen() {
                     >
                       {addedMap[(item.IDMANIF || item.id).toString()] ? "Ajouté !" : "Panier"}
                     </Button>
+                    )}
                   </YStack>
                 </YStack>
               </Card>

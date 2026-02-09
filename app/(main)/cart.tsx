@@ -1,16 +1,46 @@
-import { View, Text, YStack, XStack, Button, ScrollView, Image, H4, Separator, Card } from 'tamagui';
+import { View, Text, YStack, XStack, Button, ScrollView, Image, H4, Separator, Card, Spinner } from 'tamagui';
 import { useRouter } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import useCartStore from '../../lib/cartStore';
+import useAuthStore from '../../lib/authStore';
+import ticketApi from '../../lib/ticketApi';
 import appColors from '../../lib/theme';
 import { Alert, TouchableOpacity } from 'react-native';
+import { useState } from 'react';
 
 export default function CartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { items, removeItem, updateQuantity, getTotal, clearCart } = useCartStore();
+  const { user } = useAuthStore();
   const total = getTotal();
+  const [freeLoading, setFreeLoading] = useState(false);
+
+  const handleFreeCheckout = async () => {
+    if (items.length === 0 || !user) return;
+    setFreeLoading(true);
+    try {
+      const userId = (user as any).IDPERS || user.id;
+      for (const item of items) {
+        const resResponse = await ticketApi.createReservation(Number(item.id), Number(item.quantity), userId);
+        const resData = resResponse.data || resResponse;
+        if (!resData?.reservation && !resData?.success) {
+          throw new Error('Impossible de créer la réservation.');
+        }
+      }
+      Alert.alert(
+        'Réservation confirmée',
+        'Vos billets gratuits sont prêts dans votre espace.',
+        [{ text: 'Voir mes billets', onPress: () => { clearCart(); router.push('/login'); } }]
+      );
+    } catch (error: any) {
+      const msg = error.response?.data?.message || error.message || 'Une erreur est survenue.';
+      Alert.alert('Erreur', msg);
+    } finally {
+      setFreeLoading(false);
+    }
+  };
 
   const handleRemoveItem = (id: string | number, name: string) => {
     Alert.alert(
@@ -127,11 +157,12 @@ export default function CartScreen() {
               size="$5" 
               borderRadius="$4" 
               fontWeight="800"
-              onPress={handleCheckout}
-              disabled={items.length === 0}
+              onPress={total === 0 ? handleFreeCheckout : handleCheckout}
+              disabled={items.length === 0 || freeLoading}
               opacity={items.length === 0 ? 0.6 : 1}
+              icon={freeLoading ? <Spinner color="white" size="small" /> : undefined}
             >
-              {total === 0 ? "Valider ma commande" : "Procéder au paiement"}
+              {freeLoading ? 'Réservation en cours...' : total === 0 ? "Réserver gratuitement" : "Procéder au paiement"}
             </Button>
           </YStack>
         </>

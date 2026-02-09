@@ -1,6 +1,6 @@
-import { View, Text, YStack, XStack, Button, Spinner, ScrollView, Image, H4, Paragraph, Card, AnimatePresence } from 'tamagui';
+import { View, Text, YStack, XStack, Button, Spinner, ScrollView, Image, H4, Paragraph, Card, AnimatePresence, Input, TextArea } from 'tamagui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import appColors from '../../lib/theme';
 import { FontAwesome } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import { Alert, TouchableOpacity } from 'react-native';
 import { useState, useEffect } from 'react';
 import useAuthStore from '../../lib/authStore';
 import useCartStore from '../../lib/cartStore';
+import avisApi from '../../lib/avisApi';
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -16,8 +17,14 @@ export default function EventDetailScreen() {
   const insets = useSafeAreaInsets();
   const { isLoggedIn } = useAuthStore();
   const { addItem } = useCartStore();
+  const { user } = useAuthStore();
+  const queryClient = useQueryClient();
+  const isAdmin = !!(user?.is_admin || (user as any)?.ROLEPERS === 'admin');
   const [added, setAdded] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [reviewNote, setReviewNote] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
     if (showToast) {
@@ -47,6 +54,47 @@ export default function EventDetailScreen() {
   const availablePlaces = placesData?.available_places ?? event?.available_places ?? null;
   const totalPlaces = placesData?.total_places ?? event?.NBMAXPARTICIPANTMANIF ?? null;
   const isSoldOut = availablePlaces !== null && availablePlaces <= 0;
+
+  // Récupérer les avis approuvés
+  const { data: avisData } = useQuery({
+    queryKey: ['avis', id],
+    queryFn: async () => {
+      const res = await avisApi.getByManifestation(id as string);
+      return res.data;
+    },
+    enabled: !!id,
+  });
+
+  const avisItems = avisData?.avis || [];
+  const avisStats = avisData?.statistics || { average_rating: 0, total_reviews: 0 };
+
+  // Trouver le billet de l'utilisateur pour cette manifestation (pour pouvoir laisser un avis)
+  const userBillet = user?.billets?.find((b: any) => String(b.IDMANIF) === String(id));
+  const hasAlreadyReviewed = avisItems.some((a: any) => 
+    a.billet?.IDPERS === ((user as any)?.IDPERS || user?.id)
+  );
+
+  const submitReview = async () => {
+    if (!userBillet || reviewNote === 0) return;
+    setSubmittingReview(true);
+    try {
+      await avisApi.create(
+        userBillet.IDBILLET || userBillet.ID_BILLET,
+        Number(id),
+        reviewNote,
+        reviewComment.trim() || undefined
+      );
+      Alert.alert("Merci !", "Votre avis a été envoyé. Il sera visible après validation par un administrateur.");
+      setReviewNote(0);
+      setReviewComment('');
+      queryClient.invalidateQueries({ queryKey: ['avis', id] });
+    } catch (e: any) {
+      const msg = e.response?.data?.message || "Une erreur est survenue.";
+      Alert.alert("Erreur", msg);
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   const addToCart = (goToCart = false) => {
     if (isSoldOut) {
@@ -270,6 +318,106 @@ export default function EventDetailScreen() {
             </XStack>
           )}
 
+          {/* Section Avis */}
+          <YStack gap="$3">
+            <XStack justifyContent="space-between" alignItems="center">
+              <Text fontWeight="800" fontSize={18} color={appColors.text} letterSpacing={0.5}>AVIS</Text>
+              {avisStats.total_reviews > 0 && (
+                <XStack alignItems="center" gap="$2">
+                  <FontAwesome name="star" size={16} color="#f59e0b" />
+                  <Text fontWeight="700" fontSize={16} color={appColors.text}>
+                    {avisStats.average_rating}
+                  </Text>
+                  <Text fontSize={13} color="$gray10">({avisStats.total_reviews})</Text>
+                </XStack>
+              )}
+            </XStack>
+
+            {avisItems.length > 0 ? (
+              avisItems.slice(0, 5).map((avis: any, idx: number) => {
+                const clientName = avis.billet?.client 
+                  ? `${avis.billet.client.PRENOMPERS || ''} ${avis.billet.client.NOMPERS || ''}`.trim()
+                  : 'Anonyme';
+                return (
+                  <Card key={avis.IDAVIS || idx} p="$3" backgroundColor="white" borderRadius="$3" borderWidth={1} borderColor="$gray3">
+                    <YStack gap="$2">
+                      <XStack justifyContent="space-between" alignItems="center">
+                        <Text fontWeight="700" fontSize={14}>{clientName}</Text>
+                        <XStack gap="$1">
+                          {[1, 2, 3, 4, 5].map(star => (
+                            <FontAwesome 
+                              key={star} 
+                              name={star <= avis.NOTEAVIS ? "star" : "star-o"} 
+                              size={14} 
+                              color="#f59e0b" 
+                            />
+                          ))}
+                        </XStack>
+                      </XStack>
+                      {avis.COMMENTAIREAVIS && (
+                        <Text fontSize={13} color="$gray11" lineHeight={20}>{avis.COMMENTAIREAVIS}</Text>
+                      )}
+                    </YStack>
+                  </Card>
+                );
+              })
+            ) : (
+              <Text fontSize={13} color="$gray10">Aucun avis pour le moment.</Text>
+            )}
+
+            {/* Formulaire d'avis — uniquement si l'utilisateur a un billet et n'a pas déjà donné un avis */}
+            {isLoggedIn && userBillet && !hasAlreadyReviewed && (
+              <Card p="$4" backgroundColor="white" borderRadius="$4" borderWidth={1} borderColor={appColors.primary} marginTop="$2">
+                <YStack gap="$3">
+                  <Text fontWeight="700" fontSize={15} color={appColors.text}>Donner votre avis</Text>
+                  
+                  <XStack gap="$2" justifyContent="center">
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <TouchableOpacity key={star} onPress={() => setReviewNote(star)}>
+                        <FontAwesome 
+                          name={star <= reviewNote ? "star" : "star-o"} 
+                          size={32} 
+                          color="#f59e0b" 
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </XStack>
+
+                  <TextArea
+                    placeholder="Votre commentaire (facultatif)..."
+                    value={reviewComment}
+                    onChangeText={setReviewComment}
+                    numberOfLines={3}
+                    borderWidth={1}
+                    borderColor="$gray5"
+                    focusStyle={{ borderColor: appColors.primary }}
+                  />
+
+                  <Button
+                    backgroundColor={reviewNote > 0 ? appColors.primary : "$gray5"}
+                    color="white"
+                    disabled={reviewNote === 0 || submittingReview}
+                    opacity={reviewNote === 0 ? 0.5 : 1}
+                    onPress={submitReview}
+                  >
+                    {submittingReview ? 'Envoi...' : 'Envoyer mon avis'}
+                  </Button>
+
+                  <Text fontSize={11} color="$gray9" textAlign="center">
+                    Votre avis sera publié après validation par un administrateur.
+                  </Text>
+                </YStack>
+              </Card>
+            )}
+
+            {isLoggedIn && userBillet && hasAlreadyReviewed && (
+              <Text fontSize={13} color="$gray10" textAlign="center" marginTop="$1">
+                Vous avez déjà donné votre avis sur cet événement.
+              </Text>
+            )}
+          </YStack>
+
+          {!isAdmin && (
           <XStack gap="$3" marginTop="$4">
             <Button 
               flex={1}
@@ -299,6 +447,7 @@ export default function EventDetailScreen() {
               {isSoldOut ? "Plus de places" : "Réserver"}
             </Button>
           </XStack>
+          )}
         </YStack>
       </ScrollView>
     </View>

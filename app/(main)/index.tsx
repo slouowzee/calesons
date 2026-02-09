@@ -134,28 +134,43 @@ export default function Dashboard() {
           
           {isLoggedIn && tickets.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 15 }}>
-              {tickets.slice(0, 3).map((ticket: any, idx: number) => (
-                <Card key={idx} width={260} elevate p="$4" backgroundColor="white" borderRadius="$4" borderWidth={1} borderColor="$gray3">
-                  <YStack gap="$2">
-                    <XStack justifyContent="space-between" alignItems="center">
-                      <View backgroundColor="$blue1" px="$2" py="$1" borderRadius="$2">
-                        <Text fontSize={10} fontWeight="800" color={appColors.primary}>TICKET</Text>
-                      </View>
-                      <FontAwesome name="qrcode" size={16} color={appColors.primary} />
-                    </XStack>
-                    <Text fontWeight="800" fontSize={16} numberOfLines={1}>{ticket.manifestation?.NOMMANIF || ticket.NOMFESTIVAL || 'Événement'}</Text>
-                    <XStack alignItems="center" gap="$2">
-                      <FontAwesome name="calendar" size={12} color="$gray10" />
-                      <Text fontSize={12} color="$gray10">
-                        {ticket.reservation?.DATEHEURERESERVATION 
-                          ? new Date(ticket.reservation.DATEHEURERESERVATION).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) 
-                          : ticket.DATESESSION 
-                            ? new Date(ticket.DATESESSION).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+              {Object.values(tickets.reduce((acc: any, ticket: any) => {
+                const key = `${ticket.IDMANIF}`;
+                if (!acc[key]) {
+                  acc[key] = {
+                    name: ticket.manifestation?.NOMMANIF || ticket.NOMFESTIVAL || 'Événement',
+                    date: ticket.reservation?.DATEHEURERESERVATION || ticket.manifestation?.sessions?.[0]?.DATESESSION,
+                    count: 0,
+                    usedCount: 0,
+                  };
+                }
+                acc[key].count += 1;
+                if (ticket.INVITEBILLET) acc[key].usedCount += 1;
+                return acc;
+              }, {})).slice(0, 3).map((group: any, idx: number) => (
+                <TouchableOpacity key={idx} onPress={() => router.push('/login')}>
+                  <Card width={260} elevate p="$4" backgroundColor="white" borderRadius="$4" borderWidth={1} borderColor="$gray3">
+                    <YStack gap="$2">
+                      <XStack justifyContent="space-between" alignItems="center">
+                        <View backgroundColor={group.usedCount === group.count ? "$green2" : "$blue1"} px="$2" py="$1" borderRadius="$2">
+                          <Text fontSize={10} fontWeight="800" color={group.usedCount === group.count ? "$green10" : appColors.primary}>
+                            {group.count} BILLET{group.count > 1 ? 'S' : ''}
+                          </Text>
+                        </View>
+                        <FontAwesome name="qrcode" size={16} color={appColors.primary} />
+                      </XStack>
+                      <Text fontWeight="800" fontSize={16} numberOfLines={1}>{group.name}</Text>
+                      <XStack alignItems="center" gap="$2">
+                        <FontAwesome name="calendar" size={12} color="$gray10" />
+                        <Text fontSize={12} color="$gray10">
+                          {group.date 
+                            ? new Date(group.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) 
                             : 'À venir'}
-                      </Text>
-                    </XStack>
-                  </YStack>
-                </Card>
+                        </Text>
+                      </XStack>
+                    </YStack>
+                  </Card>
+                </TouchableOpacity>
               ))}
             </ScrollView>
           ) : (
