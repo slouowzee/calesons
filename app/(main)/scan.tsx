@@ -8,6 +8,8 @@ import { RESULTS } from 'react-native-permissions';
 import appColors from '../../lib/theme';
 import { EPermissionTypes, usePermissions } from '../../hooks/usePermissions';
 import { useAppStateListener } from '../../hooks/useAppStateListener';
+import ticketApi from '../../lib/ticketApi';
+import { Spinner } from 'tamagui';
 
 export default function ScanScreen() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -17,6 +19,7 @@ export default function ScanScreen() {
   
   const [hasPermission, setHasPermission] = useState(false);
   const [isScanning, setIsScanning] = useState(true);
+  const [isValidating, setIsValidating] = useState(false);
   const isScanningRef = useRef(true);
 
   const { askPermissions } = usePermissions(EPermissionTypes.CAMERA);
@@ -62,18 +65,58 @@ export default function ScanScreen() {
         setIsScanning(false);
         Vibration.vibrate(100);
         
-        Alert.alert("Code détecté", code.value, [
-          { 
-            text: "OK", 
-            onPress: () => {
-              setIsScanning(true);
-              isScanningRef.current = true;
-            } 
-          }
-        ]);
+        handleValidation(code.value);
       }
     }
   });
+
+  const handleValidation = async (codeValue: string) => {
+    setIsValidating(true);
+    try {
+      // Tente de parser le code comme du JSON (notre format de groupe)
+      const data = JSON.parse(codeValue);
+      if (data.ticket_ids && Array.isArray(data.ticket_ids)) {
+        // APPEL API POUR VALIDATION
+        try {
+          await ticketApi.validateTickets(data.ticket_ids);
+          
+          Alert.alert(
+            "Validation réussie", 
+            `${data.ticket_ids.length} billet(s) validé(s) en base de données.\n\nIDs: ${data.ticket_ids.join(', ')}`,
+            [
+              { 
+                text: "Continuer", 
+                onPress: () => {
+                  setIsScanning(true);
+                  isScanningRef.current = true;
+                } 
+              }
+            ]
+          );
+        } catch (apiErr: any) {
+          const detail = apiErr.response?.data?.message || apiErr.message || "Erreur serveur";
+          Alert.alert("Échec API", `Le serveur a refusé la validation: \n${detail}`, [
+            { text: "OK", onPress: () => { setIsScanning(true); isScanningRef.current = true; } }
+          ]);
+        }
+      } else {
+        throw new Error("Format QR code invalide");
+      }
+    } catch (e) {
+      // Si ce n'est pas du JSON ou format invalide, on affiche l'erreur
+      Alert.alert("Code non reconnu", "Ce code n'est pas un billet valide ou le format est incorrect.", [
+        { 
+          text: "Réessayer", 
+          onPress: () => {
+            setIsScanning(true);
+            isScanningRef.current = true;
+          } 
+        }
+      ]);
+    } finally {
+      setIsValidating(false);
+    }
+  };
 
   if (!hasPermission || device == null) {
     return (
@@ -113,6 +156,13 @@ export default function ScanScreen() {
           <View position="absolute" bottom={0} left={0} width={45} height={45} borderBottomWidth={6} borderLeftWidth={6} borderColor={appColors.primary} borderBottomLeftRadius={30} />
           <View position="absolute" bottom={0} right={0} width={45} height={45} borderBottomWidth={6} borderRightWidth={6} borderColor={appColors.primary} borderBottomRightRadius={30} />
         </View>
+
+        {isValidating && (
+          <View position="absolute" backgroundColor="rgba(0,0,0,0.5)" p="$5" borderRadius="$4" alignItems="center" gap="$2">
+            <Spinner size="large" color="white" />
+            <Text color="white" fontWeight="700">Validation...</Text>
+          </View>
+        )}
       </View>
 
       {!isScanning && (
