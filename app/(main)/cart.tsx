@@ -96,7 +96,7 @@ export default function CartScreen() {
                     <View width={80} height={80} backgroundColor="$gray3" borderRadius="$3" overflow="hidden">
                       {item.image ? (
                         <Image 
-                          source={{ uri: `https://ap4-site-web-b6bf7x-24c7b9-192-168-117-32.traefik.me/storage/affiches/${item.image}` }} 
+                          source={{ uri: `${process.env.EXPO_PUBLIC_STORAGE_URL}/${item.image}` }} 
                           width="100%" 
                           height="100%"
                         />

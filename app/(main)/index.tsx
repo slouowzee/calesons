@@ -73,7 +73,7 @@ export default function Dashboard() {
                   <View width={100} height="100%" backgroundColor="$gray2">
                     {item.AFFICHEMANIF ? (
                       <Image 
-                        source={{ uri: `https://ap4-site-web-b6bf7x-24c7b9-192-168-117-32.traefik.me/storage/affiches/${item.AFFICHEMANIF}` }} 
+                        source={{ uri: `${process.env.EXPO_PUBLIC_STORAGE_URL}/${item.AFFICHEMANIF}` }} 
                         width="100%" 
                         height="100%"
                       />

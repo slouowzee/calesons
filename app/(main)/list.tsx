@@ -210,7 +210,7 @@ export default function EventsScreen() {
                 {item.AFFICHEMANIF && (
                   <View height={150} width="100%" backgroundColor="$gray3">
                     <Image 
-                      source={{ uri: `https://ap4-site-web-b6bf7x-24c7b9-192-168-117-32.traefik.me/storage/affiches/${item.AFFICHEMANIF}` }} 
+                      source={{ uri: `${process.env.EXPO_PUBLIC_STORAGE_URL}/${item.AFFICHEMANIF}` }} 
                       width="100%" 
                       height="100%"
                       resizeMode="cover"
